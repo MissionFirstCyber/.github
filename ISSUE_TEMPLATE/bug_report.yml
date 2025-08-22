@@ -1,0 +1,57 @@
+name: "Bug report"
+description: Report a reproducible problem
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for filing a bug! Please provide as much detail as possible.
+  - type: input
+    id: affected
+    attributes:
+      label: Affected repo / version
+      description: e.g., missionfirstcyber/infra-blueprints@v1.2.3 (or commit SHA)
+    validations:
+      required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened?
+      description: Clear description of the problem and expected behavior
+      placeholder: Actual vs. expected…
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      description: List exact steps/commands/config to reproduce
+      placeholder: |
+        1. …
+        2. …
+        3. …
+    validations:
+      required: true
+  - type: dropdown
+    id: severity
+    attributes:
+      label: Severity
+      options:
+        - S1 - Critical (security/mission impact)
+        - S2 - High
+        - S3 - Medium
+        - S4 - Low
+  - type: textarea
+    id: env
+    attributes:
+      label: Environment
+      description: OS, versions, cloud, hardware, etc.
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Pre-submission checks
+      options:
+        - label: I searched existing issues
+          required: true
+        - label: This is not a security vulnerability (if it is, I emailed security@missionfirstcyber.com)
+          required: true
