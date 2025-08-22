@@ -35,7 +35,7 @@ If you’re here to **use** our work:
 2. Follow each repo’s `README` for prerequisites, quickstart, and support.
 
 If you’d like to **contribute**:
-1. Read our org-wide [Code of Conduct](https://github.com/REPLACE-ORG-NAME/.github/blob/main/CODE_OF_CONDUCT.md) and [Contributing Guide](https://github.com/REPLACE-ORG-NAME/.github/blob/main/CONTRIBUTING.md).  
+1. Read our org-wide [Code of Conduct](https://github.com/MissionFirstCyber/.github/blob/main/CODE_OF_CONDUCT.md) and [Contributing Guide](https://github.com/MissionFirstCyber/.github/blob/main/CONTRIBUTING.md).  
 2. Open an issue describing the problem or proposal.  
 3. Submit a PR with clear description, tests (where applicable), and docs updates.
 
