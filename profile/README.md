@@ -1,9 +1,3 @@
-<p align="center">
-  <a href="https://missionfirstcyber.com" target="_blank" rel="noopener">
-    <img src="[https://img1.wsimg.com/isteam/ip/09ceba46-234b-4279-a9c5-291954a726ba/M1%20CYBER%20logo.png/:/rs=w:475,h:152,cg=true,m/cr=w:475,h:152/qt=q:95](https://static.wixstatic.com/media/704a76_f64af41a6e3944f3b70607883ae88486f000.jpg/v1/fill/w_1725,h_776,al_c,q_85,usm_0.33_1.00_0.00,enc_avif,quality_auto/704a76_f64af41a6e3944f3b70607883ae88486f000.jpg)" alt="Mission First Cyber" height="64">
-  </a>
-</p>
-
 <h1 align="center">Mission First Cyber</h1>
 
 <p align="center">
