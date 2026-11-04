@@ -87,7 +87,17 @@
     font-family: Arial, Helvetica, "Liberation Sans", sans-serif;
     -webkit-print-color-adjust: exact; print-color-adjust: exact;
   }
-  .label.outline::after { content: ""; position: absolute; inset: 0; border: 0.75pt solid #000; pointer-events: none; }
+  .label.outline .label-inner::after { content: ""; position: absolute; inset: 0; border: 0.75pt solid #000; pointer-events: none; }
+  /* Test label: outline, ticks at the middle of each edge, and a TOP marker. */
+  .test-label .label-inner { padding: 0; align-items: center; justify-content: center; }
+  .tick { position: absolute; background: #000; }
+  .tick.t, .tick.b { left: 50%; width: 1pt; height: 0.12in; transform: translateX(-50%); }
+  .tick.t { top: 0; } .tick.b { bottom: 0; }
+  .tick.l, .tick.r { top: 50%; height: 1pt; width: 0.12in; transform: translateY(-50%); }
+  .tick.l { left: 0; } .tick.r { right: 0; }
+  .test-text { text-align: center; line-height: 1.15; }
+  .test-text .big { font-size: 13pt; font-weight: 700; }
+  .test-text .small { font-size: 7pt; }
   .label-inner { position: absolute; inset: 0; display: flex; padding: var(--pad, 0.06in); }
   .lines { flex: 1 1 auto; min-width: 0; min-height: 0; display: flex; flex-direction: column; justify-content: center; overflow: hidden; }
   .line { white-space: nowrap; overflow: hidden; line-height: 1.12; text-align: left; }
@@ -211,8 +221,9 @@
           <label class="field"><span>Edge margin (in)</span><input type="number" id="pad" step="0.01" min="0" max="0.25"></label>
         </div>
         <div class="row">
-          <label class="inline"><input type="checkbox" id="rotate"> Rotate 90° (if labels print sideways)</label>
+          <label class="inline"><input type="checkbox" id="rotate"> Rotate 90° (rarely needed)</label>
         </div>
+        <p class="hint" style="margin-top:-2px">Leave this off for 2 × 1 labels that come out of the printer 1-inch side first. Turning it on sends a 1 × 2 in page, which uses two labels per print on most printers.</p>
         <div class="row">
           <label class="inline"><input type="checkbox" id="outline"> Print outline (alignment test)</label>
         </div>
@@ -228,6 +239,7 @@
         <div class="preview-head">
           <div class="actions">
             <button type="button" class="primary" id="printBtn">Print labels</button>
+            <button type="button" id="testBtn">Print test label</button>
             <label class="field"><span>Copies of each</span><input type="number" id="copies" min="1" max="500" step="1"></label>
           </div>
           <span class="count" id="count"></span>
@@ -241,9 +253,11 @@
           <summary>First-time print setup</summary>
           <ol>
             <li>Use Chrome or Edge. They honor the label page size most reliably.</li>
-            <li>In your printer's driver settings, add or select a <b>2 × 1 in</b> (50.8 × 25.4 mm) paper size.</li>
-            <li>In the print dialog set <b>Margins: None</b>, <b>Scale: 100%</b> (not "fit to page"), and turn <b>Headers and footers</b> off.</li>
-            <li>Turn on "Print outline" and print one label. If the box is off-center, adjust the nudge values. If it prints sideways or across two labels, try "Rotate 90°".</li>
+            <li><b>Calibrate the printer to the new roll.</b> Most thermal printers learn the label size when you hold the feed button for 2–3 seconds until it feeds a few labels and beeps. Check your printer's manual. Do this every time you switch roll sizes.</li>
+            <li><b>Set the driver paper size to Width 2 in, Height 1 in</b> (50.8 × 25.4 mm). Width means across the print head. If it is set to 1 × 2, or still set to 4 × 6, the printer feeds the wrong length and the label comes out sideways.</li>
+            <li>In the browser print dialog, set <b>Margins: None</b>, <b>Scale: 100%</b> or Default (not "fit to page"), and turn <b>Headers and footers</b> off. If a Paper size option is shown, pick your 2 × 1 size.</li>
+            <li>Click <b>Print test label</b>. "TOP" should read normally across a single label, with the tick marks at the middle of each edge. Use the nudge values to center it.</li>
+            <li>Leave <b>Rotate 90°</b> off unless the test label still prints sideways after the steps above.</li>
             <li>Faint print? Raise the darkness or density in the printer driver rather than using grey text.</li>
           </ol>
         </details>
@@ -525,7 +539,8 @@
 
     var total = all.length * state.copies;
     $("count").textContent = total + (total === 1 ? " label" : " labels") + " will print" +
-      (overflowCount ? " · " + overflowCount + " need attention" : "");
+      (overflowCount ? " · " + overflowCount + " need attention" : "") +
+      (state.rotate ? " · Rotate 90° is on" : "");
   }
 
   // ---------- logo handling ----------
@@ -625,6 +640,44 @@
   });
 
   $("printBtn").addEventListener("click", function () { render(); window.print(); });
+
+  // One label with an outline, edge-center ticks and a TOP marker, to check
+  // orientation, feed length and centering. Uses the current size, nudge and rotate settings.
+  function buildTestLabel() {
+    var label = document.createElement("div");
+    label.className = "label test-label outline";
+    label.style.width = state.w + "in";
+    label.style.height = state.h + "in";
+    var inner = document.createElement("div");
+    inner.className = "label-inner";
+    if (state.offX || state.offY) inner.style.transform = "translate(" + state.offX + "mm," + state.offY + "mm)";
+    ["t", "b", "l", "r"].forEach(function (side) {
+      var t = document.createElement("div"); t.className = "tick " + side; inner.appendChild(t);
+    });
+    var text = document.createElement("div"); text.className = "test-text";
+    var big = document.createElement("div"); big.className = "big"; big.textContent = "\u25B2 TOP \u25B2";
+    var small = document.createElement("div"); small.className = "small";
+    small.textContent = state.w + " \u00D7 " + state.h + " in test" + (state.rotate ? " \u00B7 rotate on" : "");
+    text.appendChild(big); text.appendChild(small); inner.appendChild(text);
+    label.appendChild(inner);
+    return label;
+  }
+
+  $("testBtn").addEventListener("click", function () {
+    render();
+    var printRoot = $("print-root");
+    printRoot.textContent = "";
+    var page = document.createElement("div"); page.className = "page";
+    page.style.width = (state.rotate ? state.h : state.w) + "in";
+    page.style.height = (state.rotate ? state.w : state.h) + "in";
+    var label = buildTestLabel();
+    label.style.transformOrigin = "top left";
+    if (state.rotate) label.style.transform = "translate(" + state.h + "in,0) rotate(90deg)";
+    page.appendChild(label);
+    printRoot.appendChild(page);
+    window.print();
+    render(); // put the real labels back for the next print
+  });
 
   var resizeTimer;
   window.addEventListener("resize", function () { clearTimeout(resizeTimer); resizeTimer = setTimeout(render, 150); });

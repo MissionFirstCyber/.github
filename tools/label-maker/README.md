@@ -22,10 +22,20 @@ Your text, settings and uploaded logo are remembered in that browser.
 
 ## First-time printer setup
 
-1. In the printer driver settings, add or select a 2 × 1 in (50.8 × 25.4 mm) paper size.
-2. In the browser print dialog, set Margins to **None**, Scale to **100%**, and turn off headers and footers.
-3. Turn on **Print outline**, print one label, and adjust the nudge values until the box is centered.
-4. If text prints sideways or spans two labels, turn on **Rotate 90°**.
+1. Calibrate the printer to the 2 × 1 roll. On most thermal printers, hold the feed button for 2–3 seconds until it feeds a few labels and beeps. Check the printer's manual.
+2. In the printer driver, set the paper size to **Width 2 in, Height 1 in**. Width means across the print head.
+3. In the browser print dialog, set Margins to **None**, Scale to **100%** or Default, and turn off headers and footers.
+4. Click **Print test label**. "TOP" should read normally across one label, with tick marks at the middle of each edge. Adjust the nudge values to center it.
+5. Leave **Rotate 90°** off unless the test label still prints sideways after the steps above.
+
+### Troubleshooting
+
+| What you see | Likely cause | Fix |
+| --- | --- | --- |
+| Each print uses two labels and the text is sideways | The driver paper size is 1 × 2 in, or Rotate 90° is on | Set the paper to Width 2, Height 1, and turn Rotate 90° off |
+| Prints start partway into a label | The printer hasn't learned the gaps between labels | Calibrate the printer (step 1) |
+| Content shifted to one side | Normal printer offset | Use the nudge values |
+| Print is faint | Low darkness setting | Raise darkness or density in the driver |
 
 ## Later: inventory integration
 
