@@ -28,6 +28,18 @@ Your text, settings and uploaded logo are remembered in that browser.
 4. Click **Print test label**. "TOP" should read normally across one label, with tick marks at the middle of each edge. Adjust the nudge values to center it.
 5. Leave **Rotate 90°** off unless the test label still prints sideways after the steps above.
 
+### Settings that work: Jadens JD-168 on Windows
+
+Open Printing Preferences, then the **Stock** tab:
+
+- **Default Paper:** a custom size of 2.00 in wide by 1.00 in high.
+- **Paper Type:** the labels-with-gaps option, not Continuous.
+- **Gap:** the measured gap between labels, about 3 mm on most 2 × 1 rolls. It only needs to be close because the sensor finds the real gap.
+- **Post-Print Action:** Tear Off. If the gap still stops short of the tear bar, add a few millimetres in **Feed**.
+- **Appear:** "After job" keeps a batch together as one strip. "After each page" moves every label to the tear bar.
+
+After changing the paper type, recalibrate the printer as described in its manual.
+
 ### Troubleshooting
 
 | What you see | Likely cause | Fix |
@@ -35,6 +47,8 @@ Your text, settings and uploaded logo are remembered in that browser.
 | Each print uses two labels and the text is sideways | The driver paper size is 1 × 2 in, or Rotate 90° is on | Set the paper to Width 2, Height 1, and turn Rotate 90° off |
 | Prints start partway into a label | The printer hasn't learned the gaps between labels | Calibrate the printer (step 1) |
 | Content shifted to one side | Normal printer offset | Use the nudge values |
+| Labels slowly drift, or a print starts over the gap | Driver media type is set to Continuous | Set the paper type to labels with gaps and calibrate |
+| Printed label stops just short of the tear bar | No tear-off feed after printing | Set the post-print action to Tear Off, then fine-tune the feed offset |
 | Print is faint | Low darkness setting | Raise darkness or density in the driver |
 
 ## Later: inventory integration
