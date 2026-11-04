@@ -1,0 +1,639 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kit Label Maker</title>
+<!-- Page size for printing is injected here by script so it always matches the label size. -->
+<style id="page-style">@page { size: 2in 1in; margin: 0; }</style>
+<style>
+  :root {
+    --bg: #f3f4f6; --panel: #ffffff; --text: #1a1d21; --muted: #5d6670;
+    --border: #d6dae0; --field: #ffffff; --accent: #1f5fd6; --accent-text: #ffffff;
+    --warn-bg: #fff4e5; --warn-text: #8a4b00; --stage: #e4e7eb;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #121417; --panel: #1b1e23; --text: #e7e9ec; --muted: #9aa2ac;
+      --border: #30353d; --field: #14171b; --accent: #4d88ff; --accent-text: #0b0d10;
+      --warn-bg: #3a2a12; --warn-text: #ffcf8a; --stage: #0d0f12;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    background: var(--bg); color: var(--text);
+    font: 14px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  }
+
+  /* ---------- App chrome (never printed) ---------- */
+  .app { max-width: 1180px; margin: 0 auto; padding: 16px; }
+  header.top { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; margin-bottom: 12px; }
+  header.top h1 { font-size: 20px; margin: 0; }
+  header.top p { margin: 0; color: var(--muted); }
+  .grid { display: grid; grid-template-columns: minmax(0, 420px) minmax(0, 1fr); gap: 16px; align-items: start; }
+  @media (max-width: 860px) { .grid { grid-template-columns: minmax(0, 1fr); } }
+  .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 14px; }
+  .panel + .panel { margin-top: 12px; }
+  .panel h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 0 0 10px; }
+  .row { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; margin-bottom: 8px; }
+  .row:last-child { margin-bottom: 0; }
+  label.inline { display: inline-flex; align-items: center; gap: 6px; }
+  .field { display: flex; flex-direction: column; gap: 3px; }
+  .field > span { font-size: 12px; color: var(--muted); }
+  input[type=text], input[type=number], select, textarea {
+    font: inherit; color: var(--text); background: var(--field);
+    border: 1px solid var(--border); border-radius: 6px; padding: 6px 8px; min-width: 0;
+  }
+  input[type=number] { width: 76px; }
+  textarea { width: 100%; min-height: 96px; font-family: ui-monospace, Consolas, monospace; font-size: 13px; resize: vertical; }
+  input:focus, select:focus, textarea:focus, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  button {
+    font: inherit; border: 1px solid var(--border); background: var(--field); color: var(--text);
+    border-radius: 6px; padding: 6px 10px; cursor: pointer;
+  }
+  button:hover { border-color: var(--accent); }
+  button.primary { background: var(--accent); color: var(--accent-text); border-color: var(--accent); font-weight: 600; padding: 9px 18px; }
+  .hint { font-size: 12px; color: var(--muted); margin: 6px 0 0; }
+  code { font-family: ui-monospace, Consolas, monospace; font-size: 12px; background: var(--bg); padding: 1px 4px; border-radius: 4px; }
+
+  .lines-editor { display: grid; grid-template-columns: minmax(0, 1fr) auto auto auto; gap: 6px 8px; align-items: center; }
+  .lines-editor .hdr { font-size: 12px; color: var(--muted); }
+  .lines-editor input[type=number] { width: 62px; }
+  .lines-editor input[type=text] { width: 100%; }
+  .toggle { display: inline-flex; align-items: center; justify-content: center; gap: 3px; font-size: 12px; }
+
+  .logo-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .logo-thumb { width: 44px; height: 44px; border: 1px solid var(--border); border-radius: 6px; background: #fff; display: grid; place-items: center; }
+  .logo-thumb img { max-width: 36px; max-height: 36px; }
+
+  .preview-head { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+  .preview-head .count { color: var(--muted); }
+  .stage { background: var(--stage); border-radius: 8px; padding: 16px; display: flex; flex-wrap: wrap; gap: 16px; justify-content: center; min-height: 160px; }
+  .cell { display: flex; flex-direction: column; gap: 4px; align-items: center; }
+  .cell .meta { font-size: 12px; color: var(--muted); }
+  .cell .meta.bad { color: var(--warn-text); background: var(--warn-bg); padding: 1px 6px; border-radius: 4px; }
+  .scaler { position: relative; box-shadow: 0 1px 3px rgba(0,0,0,.25); border-radius: 3px; overflow: hidden; }
+  .scaler > .label { transform-origin: top left; position: absolute; top: 0; left: 0; }
+  details.tips summary { cursor: pointer; font-weight: 600; }
+  details.tips ol { padding-left: 20px; margin: 8px 0 0; }
+  details.tips li { margin-bottom: 4px; }
+  .actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+
+  /* ---------- The label itself (screen preview + print) ---------- */
+  /* Pure black on white only: thermal printers can't print grey, they dither it. */
+  .label {
+    position: relative; overflow: hidden; background: #fff; color: #000;
+    font-family: Arial, Helvetica, "Liberation Sans", sans-serif;
+    -webkit-print-color-adjust: exact; print-color-adjust: exact;
+  }
+  .label.outline::after { content: ""; position: absolute; inset: 0; border: 0.75pt solid #000; pointer-events: none; }
+  .label-inner { position: absolute; inset: 0; display: flex; padding: var(--pad, 0.06in); }
+  .lines { flex: 1 1 auto; min-width: 0; min-height: 0; display: flex; flex-direction: column; justify-content: center; overflow: hidden; }
+  .line { white-space: nowrap; overflow: hidden; line-height: 1.12; text-align: left; }
+  .line.b { font-weight: 700; }
+  .line.m { font-family: Consolas, "Courier New", "Liberation Mono", monospace; letter-spacing: -0.01em; }
+  .align-center .line { text-align: center; }
+  .brand { flex: none; display: flex; align-items: center; min-width: 0; }
+  .brand img { display: block; }
+  .brand-text { font-weight: 700; white-space: nowrap; letter-spacing: 0.01em; }
+
+  /* Layout: logo + name across the top, rule underneath */
+  .layout-header .label-inner { flex-direction: column; }
+  .layout-header .brand { gap: 0.04in; border-bottom: 0.75pt solid #000; padding-bottom: 0.02in; margin-bottom: 0.025in; }
+  .layout-header .brand img { height: 0.17in; width: auto; max-width: 0.5in; }
+  .layout-header.align-center .brand { justify-content: center; }
+
+  /* Layout: logo column on the left, rule, text on the right */
+  .layout-side .label-inner { flex-direction: row; }
+  .layout-side .brand { width: 28%; flex-direction: column; justify-content: center; text-align: center; border-right: 0.75pt solid #000; padding-right: 0.04in; margin-right: 0.05in; }
+  .layout-side .brand img { max-width: 100%; max-height: 0.5in; object-fit: contain; }
+  .layout-side .brand-text { white-space: normal; line-height: 1.05; margin-top: 0.03in; }
+
+  #print-root { display: none; }
+  .page { position: relative; overflow: hidden; background: #fff; }
+
+  @media print {
+    html, body { background: #fff !important; margin: 0 !important; padding: 0 !important; }
+    .app { display: none !important; }
+    #print-root { display: block; }
+    .page { break-after: page; page-break-after: always; }
+    .page:last-child { break-after: auto; page-break-after: auto; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="top">
+    <h1>Kit Label Maker</h1>
+    <p>Type it, check the preview, print to a thermal label printer.</p>
+  </header>
+
+  <div class="grid">
+    <!-- ================= Controls ================= -->
+    <div>
+      <section class="panel">
+        <h2>Template &amp; size</h2>
+        <div class="row">
+          <label class="field"><span>Start from</span>
+            <select id="template">
+              <option value="">Choose a template…</option>
+              <option value="ssd">SSD drive (kit, serial, description)</option>
+              <option value="case">Kit case (kit, serial, contact)</option>
+              <option value="big">Big kit number (no branding)</option>
+              <option value="blank">Blank</option>
+            </select>
+          </label>
+        </div>
+        <div class="row">
+          <label class="field"><span>Width (in)</span><input type="number" id="w" step="0.05" min="0.5" max="6"></label>
+          <label class="field"><span>Height (in)</span><input type="number" id="h" step="0.05" min="0.5" max="6"></label>
+          <label class="field"><span>Text alignment</span>
+            <select id="align"><option value="left">Left</option><option value="center">Center</option></select>
+          </label>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2>Branding</h2>
+        <div class="row">
+          <label class="field"><span>Layout</span>
+            <select id="layout">
+              <option value="header">Logo + name across the top</option>
+              <option value="side">Logo on the left side</option>
+              <option value="none">No branding (text only)</option>
+            </select>
+          </label>
+        </div>
+        <div class="row">
+          <label class="field" style="flex:1"><span>Brand name</span><input type="text" id="brandText"></label>
+          <label class="field"><span>Size (pt)</span><input type="number" id="brandSize" step="0.5" min="4" max="20"></label>
+        </div>
+        <div class="row logo-row">
+          <div class="logo-thumb"><img id="logoThumb" alt="Current logo"></div>
+          <label class="inline"><input type="checkbox" id="showLogo"> Show logo</label>
+          <button type="button" id="logoBtn">Upload logo…</button>
+          <button type="button" id="logoClear">Use placeholder</button>
+          <input type="file" id="logoFile" accept="image/png,image/jpeg,image/svg+xml,image/gif,image/webp" hidden>
+        </div>
+        <div class="row">
+          <label class="inline"><input type="checkbox" id="bw"> Convert logo to pure black &amp; white</label>
+          <label class="inline">Threshold <input type="range" id="threshold" min="20" max="240" step="5"></label>
+        </div>
+        <p class="hint">The diamond is only a placeholder. Upload your official logo file (PNG or SVG). Black &amp; white conversion keeps a color logo crisp on a thermal printer instead of turning it into a grey dot pattern.</p>
+      </section>
+
+      <section class="panel">
+        <h2>Lines</h2>
+        <div class="lines-editor" id="linesEditor">
+          <div class="hdr">Text (leave blank to skip)</div><div class="hdr">pt</div><div class="hdr">Bold</div><div class="hdr">Mono</div>
+        </div>
+        <div class="row" style="margin-top:10px">
+          <label class="inline"><input type="checkbox" id="autoFit"> Shrink text to fit</label>
+        </div>
+        <p class="hint">Mono is a fixed-width font, which makes serial numbers easier to read (0 vs O, 1 vs l).</p>
+      </section>
+
+      <section class="panel">
+        <h2>Several labels at once (optional)</h2>
+        <textarea id="batch" spellcheck="false" placeholder="Kit 1	SN-0001	1TB SSD&#10;Kit 2	SN-0002	1TB SSD&#10;Kit 3	SN-0003	1TB SSD"></textarea>
+        <p class="hint">One label per row. Paste straight from Excel or separate columns with <code>|</code> or commas. In the lines above, <code>{1}</code> <code>{2}</code> <code>{3}</code> pull in that column and <code>{#}</code> is the row number. Leave this empty to print just the label above.</p>
+        <div class="row" style="margin-top:8px">
+          <button type="button" id="useColumns">Set lines to {1} / S/N: {2} / {3}</button>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2>Printer adjustments</h2>
+        <div class="row">
+          <label class="field"><span>Nudge right (mm)</span><input type="number" id="offX" step="0.25" min="-10" max="10"></label>
+          <label class="field"><span>Nudge down (mm)</span><input type="number" id="offY" step="0.25" min="-10" max="10"></label>
+          <label class="field"><span>Edge margin (in)</span><input type="number" id="pad" step="0.01" min="0" max="0.25"></label>
+        </div>
+        <div class="row">
+          <label class="inline"><input type="checkbox" id="rotate"> Rotate 90° (if labels print sideways)</label>
+        </div>
+        <div class="row">
+          <label class="inline"><input type="checkbox" id="outline"> Print outline (alignment test)</label>
+        </div>
+        <div class="row">
+          <button type="button" id="reset">Reset everything</button>
+        </div>
+      </section>
+    </div>
+
+    <!-- ================= Preview ================= -->
+    <div>
+      <section class="panel">
+        <div class="preview-head">
+          <div class="actions">
+            <button type="button" class="primary" id="printBtn">Print labels</button>
+            <label class="field"><span>Copies of each</span><input type="number" id="copies" min="1" max="500" step="1"></label>
+          </div>
+          <span class="count" id="count"></span>
+        </div>
+        <div class="stage" id="stage" aria-label="Label preview"></div>
+        <p class="hint">Preview is enlarged. Text that still doesn't fit at the smallest size is flagged under the label.</p>
+      </section>
+
+      <section class="panel">
+        <details class="tips" open>
+          <summary>First-time print setup</summary>
+          <ol>
+            <li>Use Chrome or Edge. They honor the label page size most reliably.</li>
+            <li>In your printer's driver settings, add or select a <b>2 × 1 in</b> (50.8 × 25.4 mm) paper size.</li>
+            <li>In the print dialog set <b>Margins: None</b>, <b>Scale: 100%</b> (not "fit to page"), and turn <b>Headers and footers</b> off.</li>
+            <li>Turn on "Print outline" and print one label. If the box is off-center, adjust the nudge values. If it prints sideways or across two labels, try "Rotate 90°".</li>
+            <li>Faint print? Raise the darkness or density in the printer driver rather than using grey text.</li>
+          </ol>
+        </details>
+      </section>
+    </div>
+  </div>
+</div>
+
+<!-- Real-size labels, one per printed page. Built from the preview. -->
+<div id="print-root" aria-hidden="true"></div>
+
+<script>
+(function () {
+  "use strict";
+
+  var STORE_KEY = "kit-label-maker:v1";
+  var MIN_PT = 5;           // smallest size auto-fit will go; ~5pt is still legible at 203 dpi
+  var PLACEHOLDER_LOGO = "data:image/svg+xml;utf8," + encodeURIComponent(
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100">' +
+    '<path d="M50 3 97 50 50 97 3 50Z" fill="#000"/><path d="M50 27 73 50 50 73 27 50Z" fill="#fff"/></svg>');
+
+  function line(text, size, bold, mono) { return { text: text, size: size, bold: !!bold, mono: !!mono }; }
+
+  var TEMPLATES = {
+    ssd: {
+      layout: "header", align: "left", brandSize: 7.5,
+      lines: [line("KIT 1", 13, true), line("S/N: SN-0000-0000", 9, true, true), line("1TB SSD · Kit data drive", 7.5), line("", 7)]
+    },
+    case: {
+      layout: "side", align: "left", brandSize: 6,
+      lines: [line("KIT 1", 16, true), line("S/N: SN-0000-0000", 8.5, true, true), line("If found call:", 6.5), line("(555) 555-0100", 7.5, true)]
+    },
+    big: {
+      layout: "none", align: "center", brandSize: 7.5,
+      lines: [line("KIT 1", 30, true), line("SN-0000-0000", 10, true, true), line("", 7), line("", 7)]
+    },
+    blank: {
+      layout: "header", align: "left", brandSize: 7.5,
+      lines: [line("", 12, true), line("", 9), line("", 8), line("", 7)]
+    }
+  };
+
+  function defaults() {
+    var t = TEMPLATES.ssd;
+    return {
+      w: 2, h: 1, align: t.align, layout: t.layout,
+      brandText: "Rhombus Security", brandSize: t.brandSize, showLogo: true,
+      logoOriginal: null, logo: null, bw: true, threshold: 160,
+      lines: JSON.parse(JSON.stringify(t.lines)),
+      autoFit: true, batch: "", copies: 1,
+      offX: 0, offY: 0, pad: 0.06, rotate: false, outline: false
+    };
+  }
+
+  // ---------- persistence (best effort; the page works without it) ----------
+  function load() {
+    var s = defaults();
+    try {
+      var raw = localStorage.getItem(STORE_KEY);
+      if (raw) {
+        var saved = JSON.parse(raw);
+        for (var k in s) if (Object.prototype.hasOwnProperty.call(saved, k)) s[k] = saved[k];
+        while (s.lines.length < 4) s.lines.push(line("", 7));
+      }
+    } catch (e) { /* storage unavailable */ }
+    return s;
+  }
+  function save() {
+    try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch (e) { /* quota or blocked */ }
+  }
+
+  var state = load();
+  var $ = function (id) { return document.getElementById(id); };
+
+  // ---------- lines editor ----------
+  var lineInputs = [];
+  (function buildLinesEditor() {
+    var ed = $("linesEditor");
+    for (var i = 0; i < 4; i++) {
+      var text = document.createElement("input");
+      text.type = "text"; text.placeholder = "Line " + (i + 1); text.setAttribute("aria-label", "Line " + (i + 1) + " text");
+      var size = document.createElement("input");
+      size.type = "number"; size.min = "4"; size.max = "48"; size.step = "0.5"; size.setAttribute("aria-label", "Line " + (i + 1) + " size in points");
+      var bold = document.createElement("input"); bold.type = "checkbox"; bold.setAttribute("aria-label", "Line " + (i + 1) + " bold");
+      var mono = document.createElement("input"); mono.type = "checkbox"; mono.setAttribute("aria-label", "Line " + (i + 1) + " monospace");
+      var bWrap = document.createElement("label"); bWrap.className = "toggle"; bWrap.appendChild(bold);
+      var mWrap = document.createElement("label"); mWrap.className = "toggle"; mWrap.appendChild(mono);
+      ed.appendChild(text); ed.appendChild(size); ed.appendChild(bWrap); ed.appendChild(mWrap);
+      lineInputs.push({ text: text, size: size, bold: bold, mono: mono });
+    }
+  })();
+
+  // ---------- state <-> controls ----------
+  var simple = ["w", "h", "align", "layout", "brandText", "brandSize", "batch", "copies", "offX", "offY", "pad", "threshold"];
+  var checks = ["showLogo", "bw", "autoFit", "rotate", "outline"];
+
+  function toUI() {
+    simple.forEach(function (k) { $(k).value = state[k]; });
+    checks.forEach(function (k) { $(k).checked = !!state[k]; });
+    state.lines.forEach(function (l, i) {
+      var r = lineInputs[i]; if (!r) return;
+      r.text.value = l.text; r.size.value = l.size; r.bold.checked = l.bold; r.mono.checked = l.mono;
+    });
+    $("threshold").disabled = !state.bw;
+    $("logoThumb").src = state.logo || PLACEHOLDER_LOGO;
+  }
+
+  function num(v, fallback, lo, hi) {
+    var n = parseFloat(v);
+    if (!isFinite(n)) n = fallback;
+    if (lo != null) n = Math.max(lo, n);
+    if (hi != null) n = Math.min(hi, n);
+    return n;
+  }
+
+  function fromUI() {
+    state.w = num($("w").value, 2, 0.5, 6);
+    state.h = num($("h").value, 1, 0.5, 6);
+    state.align = $("align").value;
+    state.layout = $("layout").value;
+    state.brandText = $("brandText").value;
+    state.brandSize = num($("brandSize").value, 7.5, 4, 20);
+    state.batch = $("batch").value;
+    state.copies = Math.round(num($("copies").value, 1, 1, 500));
+    state.offX = num($("offX").value, 0, -10, 10);
+    state.offY = num($("offY").value, 0, -10, 10);
+    state.pad = num($("pad").value, 0.06, 0, 0.25);
+    state.threshold = num($("threshold").value, 160, 20, 240);
+    checks.forEach(function (k) { state[k] = $(k).checked; });
+    state.lines = lineInputs.map(function (r) {
+      return line(r.text.value, num(r.size.value, 8, 4, 48), r.bold.checked, r.mono.checked);
+    });
+    $("threshold").disabled = !state.bw;
+  }
+
+  // ---------- batch rows ----------
+  function parseRows(text) {
+    return text.split(/\r?\n/).filter(function (r) { return r.trim() !== ""; }).map(function (r) {
+      var sep = r.indexOf("\t") >= 0 ? "\t" : (r.indexOf("|") >= 0 ? "|" : ",");
+      return r.split(sep).map(function (c) { return c.trim(); });
+    });
+  }
+  function fill(template, cols, n) {
+    return template.replace(/\{(#|\d+)\}/g, function (_, key) {
+      if (key === "#") return String(n);
+      var v = cols[parseInt(key, 10) - 1];
+      return v == null ? "" : v;
+    });
+  }
+  function labelsToPrint() {
+    var rows = parseRows(state.batch);
+    if (!rows.length) return [state.lines];
+    return rows.map(function (cols, i) {
+      return state.lines.map(function (l) { return line(fill(l.text, cols, i + 1), l.size, l.bold, l.mono); });
+    });
+  }
+
+  // ---------- label rendering ----------
+  function buildLabel(lines) {
+    var label = document.createElement("div");
+    label.className = "label layout-" + state.layout + " align-" + state.align + (state.outline ? " outline" : "");
+    label.style.width = state.w + "in";
+    label.style.height = state.h + "in";
+
+    var inner = document.createElement("div");
+    inner.className = "label-inner";
+    inner.style.setProperty("--pad", state.pad + "in");
+    if (state.offX || state.offY) inner.style.transform = "translate(" + state.offX + "mm," + state.offY + "mm)";
+    label.appendChild(inner);
+
+    var hasBrand = state.layout !== "none" && (state.showLogo || state.brandText.trim());
+    if (hasBrand) {
+      var brand = document.createElement("div");
+      brand.className = "brand";
+      if (state.showLogo) {
+        var img = document.createElement("img");
+        img.src = state.logo || PLACEHOLDER_LOGO; img.alt = "";
+        brand.appendChild(img);
+      }
+      if (state.brandText.trim()) {
+        var bt = document.createElement("div");
+        bt.className = "brand-text";
+        bt.textContent = state.brandText;
+        bt.style.fontSize = state.brandSize + "pt";
+        brand.appendChild(bt);
+      }
+      inner.appendChild(brand);
+    }
+
+    var body = document.createElement("div");
+    body.className = "lines";
+    lines.forEach(function (l) {
+      if (!l.text.trim()) return;
+      var d = document.createElement("div");
+      d.className = "line" + (l.bold ? " b" : "") + (l.mono ? " m" : "");
+      d.textContent = l.text;
+      d.style.fontSize = l.size + "pt";
+      d.dataset.size = l.size;
+      body.appendChild(d);
+    });
+    inner.appendChild(body);
+    return label;
+  }
+
+  // Shrinks lines that are too wide, then shrinks everything if too tall.
+  // Must run on a label that is in the document (the preview) so it can be measured.
+  function fit(label) {
+    var body = label.querySelector(".lines");
+    var els = Array.prototype.slice.call(body.children);
+    var tooWide = function (el) { return el.scrollWidth > el.clientWidth + 1; };
+    var stackHeight = function () { return els.reduce(function (a, el) { return a + el.offsetHeight; }, 0); };
+
+    if (state.autoFit) {
+      els.forEach(function (el) {
+        var s = parseFloat(el.dataset.size);
+        while (tooWide(el) && s > MIN_PT) { s = Math.max(MIN_PT, s - 0.25); el.style.fontSize = s + "pt"; }
+      });
+      for (var guard = 0; guard < 80 && stackHeight() > body.clientHeight + 0.5; guard++) {
+        var changed = false;
+        els.forEach(function (el) {
+          var s = parseFloat(el.style.fontSize);
+          if (s > MIN_PT) { el.style.fontSize = Math.max(MIN_PT, s * 0.96) + "pt"; changed = true; }
+        });
+        if (!changed) break;
+      }
+    }
+    return els.some(tooWide) || stackHeight() > body.clientHeight + 1;
+  }
+
+  function setPageSize() {
+    var pw = state.rotate ? state.h : state.w;
+    var ph = state.rotate ? state.w : state.h;
+    $("page-style").textContent = "@page { size: " + pw + "in " + ph + "in; margin: 0; }";
+  }
+
+  function render() {
+    setPageSize();
+    var stage = $("stage");
+    var printRoot = $("print-root");
+    stage.textContent = "";
+    printRoot.textContent = "";
+
+    var all = labelsToPrint();
+    var pxPerIn = 96;
+    var avail = Math.max(200, stage.clientWidth - 32);
+    var zoom = Math.min(3, avail / (state.w * pxPerIn));
+    var overflowCount = 0;
+
+    all.forEach(function (lines, i) {
+      var cell = document.createElement("div"); cell.className = "cell";
+      var scaler = document.createElement("div"); scaler.className = "scaler";
+      scaler.style.width = (state.w * pxPerIn * zoom) + "px";
+      scaler.style.height = (state.h * pxPerIn * zoom) + "px";
+      var label = buildLabel(lines);
+      label.style.transform = "scale(" + zoom + ")";
+      scaler.appendChild(label);
+      cell.appendChild(scaler);
+      stage.appendChild(cell);
+
+      var bad = fit(label);
+      if (bad) overflowCount++;
+      var meta = document.createElement("div");
+      meta.className = "meta" + (bad ? " bad" : "");
+      meta.textContent = bad ? "Text doesn't fit. Shorten it or remove a line." : (all.length > 1 ? "Label " + (i + 1) : "");
+      if (meta.textContent) cell.appendChild(meta);
+
+      // Real-size copy for printing, carrying over the fitted font sizes.
+      for (var c = 0; c < state.copies; c++) {
+        var page = document.createElement("div"); page.className = "page";
+        page.style.width = (state.rotate ? state.h : state.w) + "in";
+        page.style.height = (state.rotate ? state.w : state.h) + "in";
+        var copy = label.cloneNode(true);
+        copy.style.transformOrigin = "top left";
+        copy.style.transform = state.rotate ? "translate(" + state.h + "in,0) rotate(90deg)" : "";
+        page.appendChild(copy);
+        printRoot.appendChild(page);
+      }
+    });
+
+    var total = all.length * state.copies;
+    $("count").textContent = total + (total === 1 ? " label" : " labels") + " will print" +
+      (overflowCount ? " · " + overflowCount + " need attention" : "");
+  }
+
+  // ---------- logo handling ----------
+  // Rasterize to a max 600px wide PNG (keeps storage small; plenty for ~0.2in at 203/300 dpi).
+  function rasterize(src, cb) {
+    var img = new Image();
+    img.onload = function () {
+      var w = img.naturalWidth || 600, h = img.naturalHeight || 600;
+      var scale = Math.min(1, 600 / w);
+      var c = document.createElement("canvas");
+      c.width = Math.max(1, Math.round(w * scale)); c.height = Math.max(1, Math.round(h * scale));
+      c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+      cb(c);
+    };
+    img.onerror = function () { alert("That image couldn't be loaded. Try a PNG or SVG file."); };
+    img.src = src;
+  }
+
+  function processLogo() {
+    if (!state.logoOriginal) { state.logo = null; commit(); return; }
+    if (!state.bw) { state.logo = state.logoOriginal; commit(); return; }
+    rasterize(state.logoOriginal, function (c) {
+      var ctx = c.getContext("2d");
+      var d = ctx.getImageData(0, 0, c.width, c.height);
+      var p = d.data, t = state.threshold;
+      for (var i = 0; i < p.length; i += 4) {
+        var lum = 0.299 * p[i] + 0.587 * p[i + 1] + 0.114 * p[i + 2];
+        var black = p[i + 3] >= 128 && lum < t;
+        p[i] = p[i + 1] = p[i + 2] = 0;
+        p[i + 3] = black ? 255 : 0;
+      }
+      ctx.putImageData(d, 0, 0);
+      state.logo = c.toDataURL("image/png");
+      commit();
+    });
+  }
+
+  $("logoBtn").addEventListener("click", function () { $("logoFile").click(); });
+  $("logoFile").addEventListener("change", function (e) {
+    var file = e.target.files && e.target.files[0];
+    if (!file) return;
+    var reader = new FileReader();
+    reader.onload = function () {
+      rasterize(reader.result, function (c) {
+        state.logoOriginal = c.toDataURL("image/png");
+        state.showLogo = true;
+        processLogo();
+      });
+    };
+    reader.readAsDataURL(file);
+    e.target.value = "";
+  });
+  $("logoClear").addEventListener("click", function () {
+    state.logoOriginal = null; state.logo = null; commit();
+  });
+
+  // ---------- wiring ----------
+  var pending = 0;
+  function commit() {
+    save(); toUI();
+    cancelAnimationFrame(pending);
+    pending = requestAnimationFrame(render);
+  }
+
+  var logoKeys = { bw: 1, threshold: 1 };
+  document.querySelector(".app").addEventListener("input", function (e) {
+    var id = e.target.id;
+    if (id === "template" || id === "logoFile") return;
+    fromUI();
+    if (logoKeys[id]) { processLogo(); return; }
+    save();
+    cancelAnimationFrame(pending);
+    pending = requestAnimationFrame(render);
+  });
+
+  $("template").addEventListener("change", function (e) {
+    var t = TEMPLATES[e.target.value];
+    if (!t) return;
+    state.layout = t.layout; state.align = t.align; state.brandSize = t.brandSize;
+    state.lines = JSON.parse(JSON.stringify(t.lines));
+    e.target.value = "";
+    commit();
+  });
+
+  $("useColumns").addEventListener("click", function () {
+    var texts = ["{1}", "S/N: {2}", "{3}", ""];
+    state.lines.forEach(function (l, i) { l.text = texts[i]; });
+    if (!state.batch.trim()) state.batch = "Kit 1\tSN-0001\t1TB SSD\nKit 2\tSN-0002\t1TB SSD";
+    commit();
+  });
+
+  $("reset").addEventListener("click", function () {
+    if (!confirm("Reset all settings, text and the uploaded logo?")) return;
+    try { localStorage.removeItem(STORE_KEY); } catch (e) {}
+    state = defaults();
+    commit();
+  });
+
+  $("printBtn").addEventListener("click", function () { render(); window.print(); });
+
+  var resizeTimer;
+  window.addEventListener("resize", function () { clearTimeout(resizeTimer); resizeTimer = setTimeout(render, 150); });
+
+  toUI();
+  render();
+  // Re-fit once web/system fonts are definitely ready.
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(render);
+})();
+</script>
+</body>
+</html>
