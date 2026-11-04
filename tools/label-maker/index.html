@@ -112,7 +112,7 @@
 
   /* Layout: logo + name across the top, rule underneath */
   .layout-header .label-inner { flex-direction: column; }
-  .layout-header .brand { gap: 0.04in; border-bottom: 0.75pt solid #000; padding-bottom: 0.02in; margin-bottom: 0.025in; }
+  .layout-header .brand { gap: 0.04in; border-bottom: 0.75pt solid #000; padding-bottom: 0.02in; margin-bottom: var(--hgap, 1.8pt); }
   .layout-header .brand img { height: 0.17in; width: auto; max-width: 0.5in; }
   .layout-header.align-center .brand { justify-content: center; }
 
@@ -209,7 +209,9 @@
             </select>
           </label>
           <label class="field"><span>Line spacing</span><input type="number" id="lineHeight" step="0.02" min="0.9" max="1.6"></label>
+          <label class="field"><span>Space below header (pt)</span><input type="number" id="headerGap" step="0.25" min="-1" max="20"></label>
         </div>
+        <p class="hint">Space below header moves the first line closer to or farther from the line under the brand name. The lowest setting, -1, is about as tight as it gets before the text touches the line. It applies only to the "logo + name across the top" layout.</p>
         <div class="row">
           <label class="inline"><input type="checkbox" id="autoFit"> Shrink text to fit</label>
         </div>
@@ -320,7 +322,7 @@
       brandText: "Rhombus Security", brandSize: t.brandSize, showLogo: true,
       logoOriginal: null, logo: null, bw: true, threshold: 160,
       lines: JSON.parse(JSON.stringify(t.lines)),
-      valign: "top", lineHeight: 1.08,
+      valign: "top", lineHeight: 1.08, headerGap: 1.8,
       autoFit: true, batch: "", copies: 1,
       offX: 0, offY: 0, pad: 0.06, rotate: false, outline: false
     };
@@ -365,7 +367,7 @@
   })();
 
   // ---------- state <-> controls ----------
-  var simple = ["w", "h", "align", "valign", "lineHeight", "layout", "brandText", "brandSize", "batch", "copies", "offX", "offY", "pad", "threshold"];
+  var simple = ["w", "h", "align", "valign", "lineHeight", "headerGap", "layout", "brandText", "brandSize", "batch", "copies", "offX", "offY", "pad", "threshold"];
   var checks = ["showLogo", "bw", "autoFit", "rotate", "outline"];
 
   function toUI() {
@@ -376,6 +378,7 @@
       r.text.value = l.text; r.size.value = l.size; r.bold.checked = l.bold; r.mono.checked = l.mono;
     });
     $("threshold").disabled = !state.bw;
+    $("headerGap").disabled = state.layout !== "header";
     $("logoThumb").src = state.logo || PLACEHOLDER_LOGO;
   }
 
@@ -393,6 +396,7 @@
     state.align = $("align").value;
     state.valign = $("valign").value;
     state.lineHeight = num($("lineHeight").value, 1.08, 0.9, 1.6);
+    state.headerGap = num($("headerGap").value, 1.8, -1, 20);
     state.layout = $("layout").value;
     state.brandText = $("brandText").value;
     state.brandSize = num($("brandSize").value, 7.5, 4, 20);
@@ -407,6 +411,7 @@
       return line(r.text.value, num(r.size.value, 8, 4, 48), r.bold.checked, r.mono.checked);
     });
     $("threshold").disabled = !state.bw;
+    $("headerGap").disabled = state.layout !== "header";
   }
 
   // ---------- batch rows ----------
@@ -436,6 +441,7 @@
     var label = document.createElement("div");
     label.className = "label layout-" + state.layout + " align-" + state.align + " valign-" + state.valign + (state.outline ? " outline" : "");
     label.style.setProperty("--lh", state.lineHeight);
+    label.style.setProperty("--hgap", state.headerGap + "pt");
     label.style.width = state.w + "in";
     label.style.height = state.h + "in";
 
