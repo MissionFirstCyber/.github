@@ -100,7 +100,9 @@
   .test-text .small { font-size: 7pt; }
   .label-inner { position: absolute; inset: 0; display: flex; padding: var(--pad, 0.06in); }
   .lines { flex: 1 1 auto; min-width: 0; min-height: 0; display: flex; flex-direction: column; justify-content: center; overflow: hidden; }
-  .line { white-space: nowrap; overflow: hidden; line-height: 1.12; text-align: left; }
+  .line { white-space: nowrap; overflow: hidden; line-height: var(--lh, 1.12); text-align: left; }
+  .valign-top .lines { justify-content: flex-start; }
+  .valign-bottom .lines { justify-content: flex-end; }
   .line.b { font-weight: 700; }
   .line.m { font-family: Consolas, "Courier New", "Liberation Mono", monospace; letter-spacing: -0.01em; }
   .align-center .line { text-align: center; }
@@ -199,6 +201,16 @@
           <div class="hdr">Text (leave blank to skip)</div><div class="hdr">pt</div><div class="hdr">Bold</div><div class="hdr">Mono</div>
         </div>
         <div class="row" style="margin-top:10px">
+          <label class="field"><span>Text position</span>
+            <select id="valign">
+              <option value="top">Top (right under the header)</option>
+              <option value="center">Centered</option>
+              <option value="bottom">Bottom</option>
+            </select>
+          </label>
+          <label class="field"><span>Line spacing</span><input type="number" id="lineHeight" step="0.02" min="0.9" max="1.6"></label>
+        </div>
+        <div class="row">
           <label class="inline"><input type="checkbox" id="autoFit"> Shrink text to fit</label>
         </div>
         <p class="hint">Mono is a fixed-width font, which makes serial numbers easier to read (0 vs O, 1 vs l).</p>
@@ -285,7 +297,7 @@
   var TEMPLATES = {
     ssd: {
       layout: "header", align: "left", brandSize: 7.5,
-      lines: [line("KIT 1", 13, true), line("S/N: SN-0000-0000", 9, true, true), line("1TB SSD · Kit data drive", 7.5), line("", 7)]
+      lines: [line("KIT 1", 13, true), line("S/N: SN-0000-0000", 9, true, true), line("1TB SSD · Kit data drive", 9, true), line("", 9, true)]
     },
     case: {
       layout: "side", align: "left", brandSize: 6,
@@ -308,6 +320,7 @@
       brandText: "Rhombus Security", brandSize: t.brandSize, showLogo: true,
       logoOriginal: null, logo: null, bw: true, threshold: 160,
       lines: JSON.parse(JSON.stringify(t.lines)),
+      valign: "top", lineHeight: 1.08,
       autoFit: true, batch: "", copies: 1,
       offX: 0, offY: 0, pad: 0.06, rotate: false, outline: false
     };
@@ -352,7 +365,7 @@
   })();
 
   // ---------- state <-> controls ----------
-  var simple = ["w", "h", "align", "layout", "brandText", "brandSize", "batch", "copies", "offX", "offY", "pad", "threshold"];
+  var simple = ["w", "h", "align", "valign", "lineHeight", "layout", "brandText", "brandSize", "batch", "copies", "offX", "offY", "pad", "threshold"];
   var checks = ["showLogo", "bw", "autoFit", "rotate", "outline"];
 
   function toUI() {
@@ -378,6 +391,8 @@
     state.w = num($("w").value, 2, 0.5, 6);
     state.h = num($("h").value, 1, 0.5, 6);
     state.align = $("align").value;
+    state.valign = $("valign").value;
+    state.lineHeight = num($("lineHeight").value, 1.08, 0.9, 1.6);
     state.layout = $("layout").value;
     state.brandText = $("brandText").value;
     state.brandSize = num($("brandSize").value, 7.5, 4, 20);
@@ -419,7 +434,8 @@
   // ---------- label rendering ----------
   function buildLabel(lines) {
     var label = document.createElement("div");
-    label.className = "label layout-" + state.layout + " align-" + state.align + (state.outline ? " outline" : "");
+    label.className = "label layout-" + state.layout + " align-" + state.align + " valign-" + state.valign + (state.outline ? " outline" : "");
+    label.style.setProperty("--lh", state.lineHeight);
     label.style.width = state.w + "in";
     label.style.height = state.h + "in";
 
