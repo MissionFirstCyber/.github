@@ -101,6 +101,11 @@
   .label-inner { position: absolute; inset: 0; display: flex; padding: var(--pad, 0.06in); }
   .lines { flex: 1 1 auto; min-width: 0; min-height: 0; display: flex; flex-direction: column; justify-content: center; overflow: hidden; }
   .line { white-space: nowrap; overflow: hidden; line-height: var(--lh, 1.12); text-align: left; }
+  .text-block { display: block; min-width: 0; }
+  /* "Centered block": the group sits in the middle, lines stay left-aligned to each other. */
+  .align-block .lines { align-items: center; }
+  .align-block .text-block { width: max-content; max-width: 100%; }
+  .line { max-width: 100%; }
   .valign-top .lines { justify-content: flex-start; }
   .valign-bottom .lines { justify-content: flex-end; }
   .line.b { font-weight: 700; }
@@ -114,7 +119,7 @@
   .layout-header .label-inner { flex-direction: column; }
   .layout-header .brand { gap: 0.04in; border-bottom: 0.75pt solid #000; padding-bottom: 0.02in; margin-bottom: var(--hgap, 1.8pt); }
   .layout-header .brand img { height: 0.17in; width: auto; max-width: 0.5in; }
-  .layout-header.align-center .brand { justify-content: center; }
+  .layout-header.brand-center .brand { justify-content: center; }
 
   /* Layout: logo column on the left, rule, text on the right */
   .layout-side .label-inner { flex-direction: row; }
@@ -161,7 +166,11 @@
           <label class="field"><span>Width (in)</span><input type="number" id="w" step="0.05" min="0.5" max="6"></label>
           <label class="field"><span>Height (in)</span><input type="number" id="h" step="0.05" min="0.5" max="6"></label>
           <label class="field"><span>Text alignment</span>
-            <select id="align"><option value="left">Left</option><option value="center">Center</option></select>
+            <select id="align">
+              <option value="left">Left</option>
+              <option value="block">Centered block, lines left-aligned</option>
+              <option value="center">Center each line</option>
+            </select>
           </label>
         </div>
       </section>
@@ -175,6 +184,9 @@
               <option value="side">Logo on the left side</option>
               <option value="none">No branding (text only)</option>
             </select>
+          </label>
+          <label class="field"><span>Branding position</span>
+            <select id="brandAlign"><option value="left">Left</option><option value="center">Centered</option></select>
           </label>
         </div>
         <div class="row">
@@ -319,7 +331,7 @@
     var t = TEMPLATES.ssd;
     return {
       w: 2, h: 1, align: t.align, layout: t.layout,
-      brandText: "Rhombus Security", brandSize: t.brandSize, showLogo: true,
+      brandText: "Rhombus Security", brandSize: t.brandSize, brandAlign: "left", showLogo: true,
       logoOriginal: null, logo: null, bw: true, threshold: 160,
       lines: JSON.parse(JSON.stringify(t.lines)),
       valign: "top", lineHeight: 1.08, headerGap: 1.8,
@@ -367,7 +379,7 @@
   })();
 
   // ---------- state <-> controls ----------
-  var simple = ["w", "h", "align", "valign", "lineHeight", "headerGap", "layout", "brandText", "brandSize", "batch", "copies", "offX", "offY", "pad", "threshold"];
+  var simple = ["w", "h", "align", "valign", "lineHeight", "headerGap", "brandAlign", "layout", "brandText", "brandSize", "batch", "copies", "offX", "offY", "pad", "threshold"];
   var checks = ["showLogo", "bw", "autoFit", "rotate", "outline"];
 
   function toUI() {
@@ -379,6 +391,7 @@
     });
     $("threshold").disabled = !state.bw;
     $("headerGap").disabled = state.layout !== "header";
+    $("brandAlign").disabled = state.layout !== "header";
     $("logoThumb").src = state.logo || PLACEHOLDER_LOGO;
   }
 
@@ -395,6 +408,7 @@
     state.h = num($("h").value, 1, 0.5, 6);
     state.align = $("align").value;
     state.valign = $("valign").value;
+    state.brandAlign = $("brandAlign").value;
     state.lineHeight = num($("lineHeight").value, 1.08, 0.9, 1.6);
     state.headerGap = num($("headerGap").value, 1.8, -1, 20);
     state.layout = $("layout").value;
@@ -412,6 +426,7 @@
     });
     $("threshold").disabled = !state.bw;
     $("headerGap").disabled = state.layout !== "header";
+    $("brandAlign").disabled = state.layout !== "header";
   }
 
   // ---------- batch rows ----------
@@ -439,7 +454,7 @@
   // ---------- label rendering ----------
   function buildLabel(lines) {
     var label = document.createElement("div");
-    label.className = "label layout-" + state.layout + " align-" + state.align + " valign-" + state.valign + (state.outline ? " outline" : "");
+    label.className = "label layout-" + state.layout + " align-" + state.align + " valign-" + state.valign + " brand-" + state.brandAlign + (state.outline ? " outline" : "");
     label.style.setProperty("--lh", state.lineHeight);
     label.style.setProperty("--hgap", state.headerGap + "pt");
     label.style.width = state.w + "in";
@@ -472,6 +487,9 @@
 
     var body = document.createElement("div");
     body.className = "lines";
+    var block = document.createElement("div");
+    block.className = "text-block";
+    body.appendChild(block);
     lines.forEach(function (l) {
       if (!l.text.trim()) return;
       var d = document.createElement("div");
@@ -479,7 +497,7 @@
       d.textContent = l.text;
       d.style.fontSize = l.size + "pt";
       d.dataset.size = l.size;
-      body.appendChild(d);
+      block.appendChild(d);
     });
     inner.appendChild(body);
     return label;
@@ -489,7 +507,7 @@
   // Must run on a label that is in the document (the preview) so it can be measured.
   function fit(label) {
     var body = label.querySelector(".lines");
-    var els = Array.prototype.slice.call(body.children);
+    var els = Array.prototype.slice.call(body.querySelectorAll(".line"));
     var tooWide = function (el) { return el.scrollWidth > el.clientWidth + 1; };
     var stackHeight = function () { return els.reduce(function (a, el) { return a + el.offsetHeight; }, 0); };
 
