@@ -20,6 +20,22 @@ Your text, settings and uploaded logo are remembered in that browser.
 - Print many labels at once by pasting rows from a spreadsheet. Use `{1}`, `{2}`, `{3}` in a line to insert that column and `{#}` for the row number.
 - Printer alignment tools: nudge, edge margin, 90° rotation, and an outline for test prints.
 
+## Saving your own templates
+
+1. Set up a label the way you want it: wording, sizes, layout, branding and spacing.
+2. Under **Template & size**, type a name such as "New kit SSD" and click **Save template**.
+3. To use it later, pick it from the **Start from** list under "My templates", or click **Load** next to it.
+
+- **Update** replaces a saved template with the current design.
+- **Delete** removes it.
+- Saving with a name that already exists asks before replacing it.
+
+A template stores the line text and formatting, layout, branding settings, spacing and label size. It does not store the logo image, batch rows, or printer adjustments such as nudge and rotate, so one calibration works for every template.
+
+### Backups
+
+Templates and settings live in the browser. Use **Back up templates & logo** to download a backup file. **Restore from backup** loads it into any browser or computer. **Reset everything** keeps your saved templates.
+
 ## First-time printer setup
 
 1. Calibrate the printer to the 2 × 1 roll. On most thermal printers, hold the feed button for 2–3 seconds until it feeds a few labels and beeps. Check the printer's manual.

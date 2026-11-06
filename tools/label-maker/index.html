@@ -63,6 +63,13 @@
   .lines-editor input[type=text] { width: 100%; }
   .toggle { display: inline-flex; align-items: center; justify-content: center; gap: 3px; font-size: 12px; }
 
+  .tpl-list { list-style: none; margin: 8px 0 0; padding: 0; border: 1px solid var(--border); border-radius: 8px; }
+  .tpl-list:empty { display: none; }
+  .tpl-list li { display: flex; align-items: center; gap: 6px; padding: 6px 8px; flex-wrap: wrap; }
+  .tpl-list li + li { border-top: 1px solid var(--border); }
+  .tpl-list .name { flex: 1 1 140px; min-width: 0; font-weight: 600; overflow-wrap: anywhere; }
+  .tpl-list .when { display: block; font-weight: 400; font-size: 12px; color: var(--muted); }
+  .tpl-list button { padding: 4px 8px; font-size: 13px; }
   .logo-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
   .logo-thumb { width: 44px; height: 44px; border: 1px solid var(--border); border-radius: 6px; background: #fff; display: grid; place-items: center; }
   .logo-thumb img { max-width: 36px; max-height: 36px; }
@@ -155,13 +162,24 @@
           <label class="field"><span>Start from</span>
             <select id="template">
               <option value="">Choose a template…</option>
-              <option value="ssd">SSD drive (kit, serial, description)</option>
-              <option value="case">Kit case (kit, serial, contact)</option>
-              <option value="big">Big kit number (no branding)</option>
-              <option value="blank">Blank</option>
+              <optgroup label="My templates" id="userTplGroup"></optgroup>
+              <optgroup label="Built-in">
+                <option value="b:ssd">SSD drive (kit, serial, description)</option>
+                <option value="b:case">Kit case (kit, serial, contact)</option>
+                <option value="b:big">Big kit number (no branding)</option>
+                <option value="b:blank">Blank</option>
+              </optgroup>
             </select>
           </label>
         </div>
+        <div class="row">
+          <label class="field" style="flex:1"><span>Save the current design as a template</span>
+            <input type="text" id="tplName" maxlength="60" placeholder="e.g. New kit SSD">
+          </label>
+          <button type="button" id="tplSave" style="align-self:flex-end">Save template</button>
+        </div>
+        <ul class="tpl-list" id="tplList" aria-label="My templates"></ul>
+        <p class="hint">A template saves the wording and the format: line text and sizes, layout, branding, spacing and label size. The logo image, batch rows and printer adjustments are not part of a template.</p>
         <div class="row">
           <label class="field"><span>Width (in)</span><input type="number" id="w" step="0.05" min="0.5" max="6"></label>
           <label class="field"><span>Height (in)</span><input type="number" id="h" step="0.05" min="0.5" max="6"></label>
@@ -254,8 +272,14 @@
           <label class="inline"><input type="checkbox" id="outline"> Print outline (alignment test)</label>
         </div>
         <div class="row">
+          <button type="button" id="backupBtn">Back up templates &amp; logo</button>
+          <button type="button" id="restoreBtn">Restore from backup…</button>
+          <input type="file" id="restoreFile" accept="application/json,.json" hidden>
+        </div>
+        <div class="row">
           <button type="button" id="reset">Reset everything</button>
         </div>
+        <p class="hint">Settings are saved in this browser only. A backup file lets you move your templates and logo to another computer or browser, or get them back after clearing browser data.</p>
       </section>
     </div>
 
@@ -336,7 +360,8 @@
       lines: JSON.parse(JSON.stringify(t.lines)),
       valign: "top", lineHeight: 1.08, headerGap: 1.8,
       autoFit: true, batch: "", copies: 1,
-      offX: 0, offY: 0, pad: 0.06, rotate: false, outline: false
+      offX: 0, offY: 0, pad: 0.06, rotate: false, outline: false,
+      userTemplates: []   // [{ name, saved, data }]
     };
   }
 
@@ -349,6 +374,7 @@
         var saved = JSON.parse(raw);
         for (var k in s) if (Object.prototype.hasOwnProperty.call(saved, k)) s[k] = saved[k];
         while (s.lines.length < 4) s.lines.push(line("", 7));
+        if (!Array.isArray(s.userTemplates)) s.userTemplates = [];
       }
     } catch (e) { /* storage unavailable */ }
     return s;
@@ -393,6 +419,7 @@
     $("headerGap").disabled = state.layout !== "header";
     $("brandAlign").disabled = state.layout !== "header";
     $("logoThumb").src = state.logo || PLACEHOLDER_LOGO;
+    renderTemplates();
   }
 
   function num(v, fallback, lo, hi) {
@@ -649,7 +676,7 @@
   var logoKeys = { bw: 1, threshold: 1 };
   document.querySelector(".app").addEventListener("input", function (e) {
     var id = e.target.id;
-    if (id === "template" || id === "logoFile") return;
+    if (id === "template" || id === "logoFile" || id === "tplName" || id === "restoreFile") return;
     fromUI();
     if (logoKeys[id]) { processLogo(); return; }
     save();
@@ -657,13 +684,162 @@
     pending = requestAnimationFrame(render);
   });
 
-  $("template").addEventListener("change", function (e) {
-    var t = TEMPLATES[e.target.value];
-    if (!t) return;
-    state.layout = t.layout; state.align = t.align; state.brandSize = t.brandSize;
-    state.lines = JSON.parse(JSON.stringify(t.lines));
-    e.target.value = "";
+  // ---------- templates ----------
+  // What a saved template captures: wording and format, not data or printer calibration.
+  var TEMPLATE_KEYS = ["w", "h", "align", "valign", "lineHeight", "headerGap", "layout",
+    "brandText", "brandSize", "brandAlign", "showLogo", "lines", "autoFit", "pad"];
+  var clone = function (v) { return JSON.parse(JSON.stringify(v)); };
+
+  function snapshot() {
+    var t = {};
+    TEMPLATE_KEYS.forEach(function (k) { t[k] = clone(state[k]); });
+    return t;
+  }
+  function applySaved(data) {
+    TEMPLATE_KEYS.forEach(function (k) {
+      if (data && Object.prototype.hasOwnProperty.call(data, k)) state[k] = clone(data[k]);
+    });
+    if (!Array.isArray(state.lines)) state.lines = defaults().lines;
+    state.lines = state.lines.slice(0, 4).map(function (l) {
+      l = l || {};
+      return line(String(l.text == null ? "" : l.text), num(l.size, 8, 4, 48), l.bold, l.mono);
+    });
+    while (state.lines.length < 4) state.lines.push(line("", 9));
     commit();
+  }
+  function findTemplate(name) {
+    for (var i = 0; i < state.userTemplates.length; i++) {
+      if (state.userTemplates[i].name.toLowerCase() === name.toLowerCase()) return i;
+    }
+    return -1;
+  }
+  function savedWhen(iso) {
+    var d = new Date(iso);
+    return isNaN(d) ? "" : "Saved " + d.toLocaleDateString() + " " + d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  }
+
+  function renderTemplates() {
+    var group = $("userTplGroup"), list = $("tplList");
+    group.textContent = ""; list.textContent = "";
+    state.userTemplates.forEach(function (t, i) {
+      var opt = document.createElement("option");
+      opt.value = "u:" + i; opt.textContent = t.name;
+      group.appendChild(opt);
+
+      var li = document.createElement("li");
+      var name = document.createElement("span"); name.className = "name"; name.textContent = t.name;
+      var when = document.createElement("span"); when.className = "when"; when.textContent = savedWhen(t.saved);
+      name.appendChild(when);
+      li.appendChild(name);
+      [["Load", "load"], ["Update", "update"], ["Delete", "delete"]].forEach(function (b) {
+        var btn = document.createElement("button");
+        btn.type = "button"; btn.textContent = b[0]; btn.dataset.action = b[1]; btn.dataset.index = i;
+        btn.setAttribute("aria-label", b[0] + " template " + t.name);
+        if (b[1] === "update") btn.title = "Replace this template with the current design";
+        li.appendChild(btn);
+      });
+      list.appendChild(li);
+    });
+    group.disabled = state.userTemplates.length === 0;
+  }
+
+  $("template").addEventListener("change", function (e) {
+    var v = e.target.value;
+    e.target.value = "";
+    if (v.indexOf("b:") === 0) {
+      var t = TEMPLATES[v.slice(2)];
+      if (!t) return;
+      state.layout = t.layout; state.align = t.align; state.brandSize = t.brandSize;
+      state.lines = clone(t.lines);
+      commit();
+    } else if (v.indexOf("u:") === 0) {
+      var saved = state.userTemplates[parseInt(v.slice(2), 10)];
+      if (saved) applySaved(saved.data);
+    }
+  });
+
+  $("tplSave").addEventListener("click", function () {
+    var name = $("tplName").value.trim();
+    if (!name) { $("tplName").focus(); return; }
+    var i = findTemplate(name);
+    var entry = { name: name, saved: new Date().toISOString(), data: snapshot() };
+    if (i >= 0) {
+      if (!confirm('A template named "' + state.userTemplates[i].name + '" already exists. Replace it with the current design?')) return;
+      state.userTemplates[i] = entry;
+    } else {
+      state.userTemplates.push(entry);
+    }
+    $("tplName").value = "";
+    commit();
+  });
+  $("tplName").addEventListener("keydown", function (e) { if (e.key === "Enter") $("tplSave").click(); });
+
+  $("tplList").addEventListener("click", function (e) {
+    var btn = e.target.closest("button");
+    if (!btn) return;
+    var i = parseInt(btn.dataset.index, 10), t = state.userTemplates[i];
+    if (!t) return;
+    if (btn.dataset.action === "load") {
+      applySaved(t.data);
+    } else if (btn.dataset.action === "update") {
+      if (!confirm('Replace "' + t.name + '" with the current design?')) return;
+      t.data = snapshot(); t.saved = new Date().toISOString();
+      commit();
+    } else if (btn.dataset.action === "delete") {
+      if (!confirm('Delete the template "' + t.name + '"?')) return;
+      state.userTemplates.splice(i, 1);
+      commit();
+    }
+  });
+
+  // ---------- backup / restore ----------
+  $("backupBtn").addEventListener("click", function () {
+    var data = {
+      app: "kit-label-maker", version: 1, exported: new Date().toISOString(),
+      templates: state.userTemplates, current: snapshot(),
+      logoOriginal: state.logoOriginal, bw: state.bw, threshold: state.threshold
+    };
+    var url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: "application/json" }));
+    var a = document.createElement("a");
+    a.href = url; a.download = "kit-labels-backup-" + new Date().toISOString().slice(0, 10) + ".json";
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+  });
+
+  $("restoreBtn").addEventListener("click", function () { $("restoreFile").click(); });
+  $("restoreFile").addEventListener("change", function (e) {
+    var file = e.target.files && e.target.files[0];
+    e.target.value = "";
+    if (!file) return;
+    var reader = new FileReader();
+    reader.onload = function () {
+      var data;
+      try { data = JSON.parse(reader.result); } catch (err) { data = null; }
+      if (!data || data.app !== "kit-label-maker" || !Array.isArray(data.templates)) {
+        alert("That file isn't a Kit Label Maker backup."); return;
+      }
+      var incoming = data.templates.filter(function (t) {
+        return t && typeof t.name === "string" && t.name.trim() && t.data && typeof t.data === "object";
+      });
+      var hasLogo = typeof data.logoOriginal === "string" && data.logoOriginal.indexOf("data:image/") === 0;
+      var msg = "Restore " + incoming.length + " template" + (incoming.length === 1 ? "" : "s") +
+        (hasLogo ? " and the logo" : "") + "? Templates with the same name will be replaced.";
+      if (!confirm(msg)) return;
+      incoming.forEach(function (t) {
+        var entry = { name: t.name.trim().slice(0, 60), saved: String(t.saved || ""), data: t.data };
+        var i = findTemplate(entry.name);
+        if (i >= 0) state.userTemplates[i] = entry; else state.userTemplates.push(entry);
+      });
+      if (hasLogo) {
+        state.logoOriginal = data.logoOriginal;
+        if (typeof data.bw === "boolean") state.bw = data.bw;
+        if (isFinite(data.threshold)) state.threshold = num(data.threshold, 160, 20, 240);
+        processLogo();   // re-derives the printable logo, then saves and re-renders
+      } else {
+        commit();
+      }
+    };
+    reader.readAsText(file);
   });
 
   $("useColumns").addEventListener("click", function () {
@@ -674,9 +850,11 @@
   });
 
   $("reset").addEventListener("click", function () {
-    if (!confirm("Reset all settings, text and the uploaded logo?")) return;
+    if (!confirm("Reset all settings, text and the uploaded logo? Your saved templates are kept.")) return;
+    var keep = state.userTemplates;
     try { localStorage.removeItem(STORE_KEY); } catch (e) {}
     state = defaults();
+    state.userTemplates = keep;
     commit();
   });
 
