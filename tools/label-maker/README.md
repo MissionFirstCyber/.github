@@ -32,9 +32,15 @@ Your text, settings and uploaded logo are remembered in that browser.
 
 A template stores the line text and formatting, layout, branding settings, spacing and label size. It does not store the logo image, batch rows, or printer adjustments such as nudge and rotate, so one calibration works for every template.
 
-### Backups
+### Keeping templates when the browser forgets
 
-Templates and settings live in the browser. Use **Back up templates & logo** to download a backup file. **Restore from backup** loads it into any browser or computer. **Reset everything** keeps your saved templates.
+Templates and settings are saved in the browser automatically. Some Chrome setups erase that data whenever Chrome closes, either through a setting or a company policy. The setting is at `chrome://settings/content/siteData`.
+
+To make your templates permanent, click **Download page with my templates**. It saves a copy of this page named `kit-label-maker.html` with your templates, logo and printer adjustments built into the file. Open that file from now on. If the browser has lost its saved data, the page loads everything from the file instead.
+
+The page shows a warning when it has changes that are not in the file yet. After adding or changing templates, download the page again and replace your old copy.
+
+**Back up templates & logo** and **Restore from backup** do the same job with a separate data file. They are useful for merging templates into a page that already has others. **Reset everything** keeps your saved templates.
 
 ## First-time printer setup
 

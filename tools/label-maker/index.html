@@ -6,6 +6,9 @@
 <title>Kit Label Maker</title>
 <!-- Page size for printing is injected here by script so it always matches the label size. -->
 <style id="page-style">@page { size: 2in 1in; margin: 0; }</style>
+<!-- Templates, logo and settings built into this file by "Download page with my templates".
+     Used whenever the browser has no saved data, for example after Chrome clears site data. -->
+<script type="application/json" id="saved-data">null</script>
 <style>
   :root {
     --bg: #f3f4f6; --panel: #ffffff; --text: #1a1d21; --muted: #5d6670;
@@ -70,6 +73,9 @@
   .tpl-list .name { flex: 1 1 140px; min-width: 0; font-weight: 600; overflow-wrap: anywhere; }
   .tpl-list .when { display: block; font-weight: 400; font-size: 12px; color: var(--muted); }
   .tpl-list button { padding: 4px 8px; font-size: 13px; }
+  .file-status { margin: 10px 0 8px; font-size: 13px; padding: 7px 9px; border-radius: 6px; border: 1px solid var(--border); }
+  .file-status.warn { background: var(--warn-bg); color: var(--warn-text); border-color: transparent; }
+  .file-status:empty { display: none; }
   .logo-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
   .logo-thumb { width: 44px; height: 44px; border: 1px solid var(--border); border-radius: 6px; background: #fff; display: grid; place-items: center; }
   .logo-thumb img { max-width: 36px; max-height: 36px; }
@@ -180,6 +186,10 @@
         </div>
         <ul class="tpl-list" id="tplList" aria-label="My templates"></ul>
         <p class="hint">A template saves the wording and the format: line text and sizes, layout, branding, spacing and label size. The logo image, batch rows and printer adjustments are not part of a template.</p>
+        <p class="file-status" id="fileStatus" role="status"></p>
+        <div class="row">
+          <button type="button" id="pageDownload">Download page with my templates</button>
+        </div>
         <div class="row">
           <label class="field"><span>Width (in)</span><input type="number" id="w" step="0.05" min="0.5" max="6"></label>
           <label class="field"><span>Height (in)</span><input type="number" id="h" step="0.05" min="0.5" max="6"></label>
@@ -279,7 +289,7 @@
         <div class="row">
           <button type="button" id="reset">Reset everything</button>
         </div>
-        <p class="hint">Settings are saved in this browser only. A backup file lets you move your templates and logo to another computer or browser, or get them back after clearing browser data.</p>
+        <p class="hint">"Download page with my templates" is the simplest way to keep everything. A backup file is an alternative for moving templates and the logo into a page that already has other templates.</p>
       </section>
     </div>
 
@@ -324,6 +334,15 @@
 (function () {
   "use strict";
 
+  // The page exactly as loaded, before this script changes anything. Used to write a
+  // copy of the page with the user's data built in.
+  var PRISTINE = document.documentElement.outerHTML;
+  var EMBEDDED = null;
+  try { EMBEDDED = JSON.parse(document.getElementById("saved-data").textContent); } catch (e) { EMBEDDED = null; }
+  if (!EMBEDDED || EMBEDDED.app !== "kit-label-maker" || !EMBEDDED.state || typeof EMBEDDED.state !== "object") EMBEDDED = null;
+  var storageOK = true;
+  var downloadedThisSession = false;
+
   var STORE_KEY = "kit-label-maker:v1";
   var MIN_PT = 5;           // smallest size auto-fit will go; ~5pt is still legible at 203 dpi
   var PLACEHOLDER_LOGO = "data:image/svg+xml;utf8," + encodeURIComponent(
@@ -366,24 +385,77 @@
   }
 
   // ---------- persistence (best effort; the page works without it) ----------
+  // Browser storage wins when it has data. If it is empty (first open, or the browser
+  // cleared it), fall back to whatever was built into this file.
   function load() {
-    var s = defaults();
+    var s = defaults(), saved = null;
     try {
       var raw = localStorage.getItem(STORE_KEY);
-      if (raw) {
-        var saved = JSON.parse(raw);
-        for (var k in s) if (Object.prototype.hasOwnProperty.call(saved, k)) s[k] = saved[k];
-        while (s.lines.length < 4) s.lines.push(line("", 7));
-        if (!Array.isArray(s.userTemplates)) s.userTemplates = [];
-      }
-    } catch (e) { /* storage unavailable */ }
+      if (raw) saved = JSON.parse(raw);
+    } catch (e) { storageOK = false; }
+    // Work on a copy so edits never change the record of what is in the file.
+    if (!saved && EMBEDDED) saved = JSON.parse(JSON.stringify(EMBEDDED.state));
+    if (saved && typeof saved === "object") {
+      for (var k in s) if (Object.prototype.hasOwnProperty.call(saved, k)) s[k] = saved[k];
+      if (!Array.isArray(s.lines)) s.lines = defaults().lines;
+      while (s.lines.length < 4) s.lines.push(line("", 7));
+      if (!Array.isArray(s.userTemplates)) s.userTemplates = [];
+    }
     return s;
   }
   function save() {
-    try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch (e) { /* quota or blocked */ }
+    try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); storageOK = true; }
+    catch (e) { storageOK = false; }
+    updateFileStatus();
+  }
+
+  // ---------- keeping data in the page file ----------
+  // Things worth protecting if the browser forgets: templates, logo and printer calibration.
+  var KEEP_KEYS = ["userTemplates", "logoOriginal", "bw", "threshold", "offX", "offY", "pad", "rotate"];
+  function keepSig(src) {
+    return JSON.stringify(KEEP_KEYS.map(function (k) { return src ? src[k] : undefined; }));
+  }
+  function updateFileStatus() {
+    var el = document.getElementById("fileStatus");
+    if (!el || !state) return;
+    var inFile = EMBEDDED ? EMBEDDED.state : defaults();
+    var dirty = keepSig(state) !== keepSig(inFile);
+    var n = state.userTemplates.length, warn = false, msg = "";
+    if (!storageOK) {
+      warn = true;
+      msg = "This browser is not saving your changes. Click \u201cDownload page with my templates\u201d before closing this page, and open the downloaded file next time.";
+    } else if (dirty && (n || state.logoOriginal)) {
+      warn = true;
+      msg = "Your latest templates and settings are only saved in this browser, and Chrome can erase them when it closes. " +
+        "Click \u201cDownload page with my templates\u201d and open the downloaded file from now on.";
+    } else if (!dirty && downloadedThisSession) {
+      msg = "Saved into the downloaded file kit-label-maker.html. Open that file from now on.";
+    } else if (!dirty && n) {
+      msg = n === 1
+        ? "Your template is built into this page file, so it survives even if Chrome clears its data."
+        : "Your " + n + " templates are built into this page file, so they survive even if Chrome clears its data.";
+    }
+    el.textContent = msg;
+    el.className = "file-status" + (warn ? " warn" : "");
+  }
+
+  function downloadFile(text, filename, type) {
+    var url = URL.createObjectURL(new Blob([text], { type: type }));
+    var a = document.createElement("a");
+    a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+  }
+
+  function pageWithData(data) {
+    var doc = new DOMParser().parseFromString(PRISTINE, "text/html");
+    // Escape "<" so the JSON can never close the script tag early.
+    doc.getElementById("saved-data").textContent = JSON.stringify(data).replace(/</g, "\\u003c");
+    return "<!doctype html>\n" + doc.documentElement.outerHTML + "\n";
   }
 
   var state = load();
+  save();
   var $ = function (id) { return document.getElementById(id); };
 
   // ---------- lines editor ----------
@@ -799,11 +871,15 @@
       templates: state.userTemplates, current: snapshot(),
       logoOriginal: state.logoOriginal, bw: state.bw, threshold: state.threshold
     };
-    var url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: "application/json" }));
-    var a = document.createElement("a");
-    a.href = url; a.download = "kit-labels-backup-" + new Date().toISOString().slice(0, 10) + ".json";
-    document.body.appendChild(a); a.click(); a.remove();
-    setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+    downloadFile(JSON.stringify(data, null, 2), "kit-labels-backup-" + new Date().toISOString().slice(0, 10) + ".json", "application/json");
+  });
+
+  $("pageDownload").addEventListener("click", function () {
+    var data = { app: "kit-label-maker", version: 1, saved: new Date().toISOString(), state: clone(state) };
+    downloadFile(pageWithData(data), "kit-label-maker.html", "text/html");
+    EMBEDDED = data;
+    downloadedThisSession = true;
+    updateFileStatus();
   });
 
   $("restoreBtn").addEventListener("click", function () { $("restoreFile").click(); });
